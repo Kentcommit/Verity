@@ -1,0 +1,21 @@
+<set xmlns:android="http://schemas.android.com/apk/res/android">
+    <objectAnimator
+        android:duration="1500"
+        android:propertyName="trimPathEnd"
+        android:valueFrom="0"
+        android:valueTo="1"
+        android:valueType="floatType"
+        android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+        android:repeatCount="infinite"
+        android:repeatMode="restart" />
+    <objectAnimator
+        android:duration="1500"
+        android:propertyName="trimPathStart"
+        android:valueFrom="0"
+        android:valueTo="1"
+        android:valueType="floatType"
+        android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+        android:repeatCount="infinite"
+        android:repeatMode="restart"
+        android:startOffset="500" />
+</set>

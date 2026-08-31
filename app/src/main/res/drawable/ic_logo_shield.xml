@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer Shield Outline -->
+    <path
+        android:name="shield_path"
+        android:fillColor="#3478F6"
+        android:pathData="M54,10 L18,24 V52 C18,74 54,94 54,94 C54,94 90,74 90,52 V24 L54,10 Z" />
+
+    <!-- Inner Shield (Slightly smaller for depth) -->
+    <path
+        android:fillColor="#1E88E5"
+        android:pathData="M54,18 L26,29 V52 C26,68 54,84 54,84 C54,84 82,68 82,52 V29 L54,18 Z" />
+
+    <!-- Heartbeat / Pulse Line -->
+    <path
+        android:name="heartbeat_path"
+        android:pathData="M35,54 L44,54 L48,40 L52,68 L56,40 L60,54 L73,54"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2.5" />
+</vector>

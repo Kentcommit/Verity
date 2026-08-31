@@ -1,0 +1,11 @@
+<set xmlns:android="http://schemas.android.com/apk/res/android">
+    <objectAnimator
+        android:duration="750"
+        android:propertyName="fillAlpha"
+        android:valueFrom="1.0"
+        android:valueTo="0.8"
+        android:valueType="floatType"
+        android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+        android:repeatCount="infinite"
+        android:repeatMode="reverse" />
+</set>
