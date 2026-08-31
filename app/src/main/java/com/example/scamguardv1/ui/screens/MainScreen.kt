@@ -144,7 +144,7 @@ fun ScamGuardApp(viewModel: MainViewModel) {
         ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            viewModel.refreshFiles()
+            viewModel.importAudioFile(uri)
         }
     }
 

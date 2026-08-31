@@ -351,8 +351,12 @@ class MainViewModel(
                     }
                     
                     if (latest is MainUiState.Success) {
+                        // Keep any temporary session files that are currently being scanned or shown
+                        val sessionFiles = latest.audioFiles.filter { it.id < 0 }
+                        val combinedFiles = (filteredFiles + sessionFiles).distinctBy { it.uri }
+
                         performCleanup(latest.copy(
-                            audioFiles = filteredFiles,
+                            audioFiles = combinedFiles,
                             isOverlayPermissionGranted = overlayGranted
                         ))
                     } else {
@@ -373,6 +377,41 @@ class MainViewModel(
             }.onFailure { e ->
                 Logger.e("Failed to load audio files", e)
                 _uiState.value = MainUiState.Error(Constants.ERROR_LOAD_FILES_FAILED)
+            }
+        }
+    }
+
+    fun importAudioFile(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                var fileName = "Imported Audio"
+                var duration = 0
+                val timestamp = System.currentTimeMillis()
+
+                // Try to get metadata
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1 && cursor.moveToFirst()) {
+                        fileName = cursor.getString(nameIndex)
+                    }
+                }
+
+                // Temporary ID for the session (negative to avoid conflict with MediaStore)
+                val tempId = -(System.currentTimeMillis() % 1000000)
+                val newFile = AudioFile(tempId, fileName, uri, duration, timestamp)
+
+                _uiState.update { state ->
+                    if (state is MainUiState.Success) {
+                        state.copy(
+                            audioFiles = listOf(newFile) + state.audioFiles,
+                            isAudioScreeningViewVisible = true
+                        )
+                    } else state
+                }
+
+                scanFile(newFile)
+            } catch (e: Exception) {
+                Logger.e("Failed to import file: $uri", e)
             }
         }
     }
