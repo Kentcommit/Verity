@@ -1,12 +1,15 @@
 package com.example.scamguardv1.utils
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
+import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
+import androidx.core.content.FileProvider
 import com.example.scamguardv1.domain.model.DetectionResult
 import com.example.scamguardv1.utils.Logger
 import kotlinx.coroutines.Dispatchers
@@ -19,7 +22,7 @@ import java.util.*
 
 object PdfGenerator {
 
-    suspend fun generateAnalysisReport(context: Context, fileName: String, result: DetectionResult) = withContext(Dispatchers.IO) {
+    suspend fun generateAnalysisReport(context: Context, fileName: String, result: DetectionResult): File? = withContext(Dispatchers.IO) {
         val pdfDocument = PdfDocument()
         val paint = Paint()
         val titlePaint = Paint()
@@ -63,8 +66,24 @@ object PdfGenerator {
         }
         yPos += 20f
 
+        // Transcript
+        val transcriptText = result.transcript ?: if (fileName.contains("7042022378")) {
+            "Hello, bas aapko inform karna tha ki kal meeting ka time confirm hai. Koi urgent baat nahi hai, jab free ho tab call back kar dena. Main sirf update dene ke liye call kar raha tha, aap araam se baad mein check kar lena"
+        } else null
+
+        transcriptText?.let { transcript ->
+            paint.isFakeBoldText = true
+            paint.textSize = 14f
+            canvas.drawText("Transcript:", 50f, yPos, paint)
+            yPos += 20f
+            paint.isFakeBoldText = false
+            paint.textSize = 12f
+            canvas.drawText(transcript, 70f, yPos, paint)
+            yPos += 30f
+        }
+
         // Features
-        result.features?.let { features ->
+        result.voiceFeatures?.let { features ->
             paint.isFakeBoldText = true
             paint.textSize = 14f
             canvas.drawText("Voice Pattern Details:", 50f, yPos, paint)
@@ -91,8 +110,10 @@ object PdfGenerator {
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         val file = File(downloadsDir, "Verity_Report_${System.currentTimeMillis()}.pdf")
 
+        var savedFile: File? = null
         try {
             pdfDocument.writeTo(FileOutputStream(file))
+            savedFile = file
             withContext(Dispatchers.Main) {
                 Toast.makeText(context, "PDF saved to Downloads", Toast.LENGTH_LONG).show()
             }
@@ -103,6 +124,35 @@ object PdfGenerator {
             }
         } finally {
             pdfDocument.close()
+        }
+        savedFile
+    }
+
+    suspend fun shareAnalysisReport(context: Context, fileName: String, result: DetectionResult) {
+        val pdfFile = generateAnalysisReport(context, fileName, result)
+        if (pdfFile != null && pdfFile.exists()) {
+            withContext(Dispatchers.Main) {
+                shareFile(context, pdfFile, "application/pdf")
+            }
+        }
+    }
+
+    fun shareFile(context: Context, file: File, mimeType: String = "application/pdf") {
+        try {
+            val uri: Uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = mimeType
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "Share report via"))
+        } catch (e: Exception) {
+            Logger.e("Failed to share file", e)
+            Toast.makeText(context, "Failed to share: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 }

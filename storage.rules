@@ -1,0 +1,18 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Restricted directory for baseline voice data
+    match /Verity/data/encrypted/{allPaths=**} {
+      // Only authorized admins can read the encrypted baseline files
+      allow read: if request.auth != null && request.auth.token.admin == true;
+
+      // The app can write its own baseline during enrollment
+      allow write: if request.auth != null;
+    }
+
+    // Default rule for other files
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

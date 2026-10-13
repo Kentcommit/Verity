@@ -40,4 +40,6 @@ object Constants {
     const val PREF_APP_THEME = "app_theme"
     const val PREF_SCREENED_CALLS = "persisted_screened_calls"
     const val PREF_SCAN_HISTORY = "persisted_scan_history"
+    const val PREF_PROFILE_PIC_URI = "profile_pic_uri"
+    const val PREF_DISPLAY_NAME = "display_name"
 }

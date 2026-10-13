@@ -13,3 +13,12 @@
 .externalNativeBuild
 .cxx
 local.properties
+.artifacts/
+.kotlin/
+node_modules/
+functions/node_modules/
+tools/node_modules/
+build_output.log
+*.log
+serviceAccountKey.json
+**/serviceAccountKey.json

@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "489798800142",
+    "project_id": "scamguardv1-a1e637d0",
+    "storage_bucket": "scamguardv1-a1e637d0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:489798800142:android:7e03caaa1ca4c9d240fd5f",
+        "android_client_info": {
+          "package_name": "com.verity.Verity"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBuCeMi2ciBMO6GguJNggnj5a2_6dMc2kc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:489798800142:android:7e03caaa1ca4c9d240fd5f",
+        "android_client_info": {
+          "package_name": "com.example.scamguardv1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBuCeMi2ciBMO6GguJNggnj5a2_6dMc2kc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

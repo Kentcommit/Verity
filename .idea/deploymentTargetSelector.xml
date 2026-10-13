@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="Verity">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-08-31T05:05:48.686833400Z">
+        <DropdownSelection timestamp="2026-09-12T12:35:08.927339800Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\mohan\.android\avd\Pixel_7.avd" />
+              <DeviceId pluginId="PhysicalDevice" identifier="serial=RZCXC1AKFMN" />
             </handle>
           </Target>
         </DropdownSelection>

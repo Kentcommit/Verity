@@ -9,16 +9,30 @@ enum class AppTheme {
 }
 
 enum class SettingsView {
-    MAIN, THEME, AUTO_DELETE
+    MAIN, THEME, AUTO_DELETE, ACCOUNT_SECURITY
 }
 
 sealed interface MainUiState {
     data object Splash : MainUiState
     data object Welcome : MainUiState
+    data class Auth(
+        val isLoading: Boolean = false,
+        val errorMessage: String? = null,
+        val infoMessage: String? = null,
+        val isRegisterMode: Boolean = false,
+        val userEmail: String? = null,
+        val isEmailUnverified: Boolean = false
+    ) : MainUiState
     data object CheckingPermission : MainUiState
     data object PermissionRequired : MainUiState
     data object PermissionDenied : MainUiState
     data object Loading : MainUiState
+    data class VoiceRecordingRequired(
+        val userEmail: String?,
+        val isRecording: Boolean = false,
+        val elapsedSeconds: Int = 0,
+        val errorMessage: String? = null
+    ) : MainUiState
     data class Success(
         val audioFiles: List<AudioFile>,
         val scanState: ScanUiState = ScanUiState.Idle,
@@ -38,7 +52,13 @@ sealed interface MainUiState {
         val currentTheme: AppTheme = AppTheme.SYSTEM,
         val autoDeleteDays: Int = 0, // 0 means Never
         val isSettingsVisible: Boolean = false,
-        val currentSettingsView: SettingsView = SettingsView.MAIN
+        val currentSettingsView: SettingsView = SettingsView.MAIN,
+        val userEmail: String? = null,
+        val userDisplayName: String? = null,
+        val profilePictureUri: String? = null,
+        val isEmailVerified: Boolean = false,
+        val accountMessage: String? = null,
+        val isAccountDeleting: Boolean = false
     ) : MainUiState
     data class Error(val message: String) : MainUiState
 }

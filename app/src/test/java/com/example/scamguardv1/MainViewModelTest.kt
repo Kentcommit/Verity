@@ -1,6 +1,8 @@
 package com.example.scamguardv1
 
+import android.content.Context
 import com.example.scamguardv1.data.AudioFileRepository
+import com.example.scamguardv1.data.HistoryManager
 import com.example.scamguardv1.data.ScamDetector
 import com.example.scamguardv1.data.VoiceAnalyzer
 import com.example.scamguardv1.domain.player.VoicePlayer
@@ -39,12 +41,21 @@ class MainViewModelTest {
     @Mock
     lateinit var voicePlayer: VoicePlayer
 
+    @Mock
+    lateinit var context: Context
+
+    @Mock
+    lateinit var historyManager: HistoryManager
+
+    @Mock
+    lateinit var voiceAnalyzer: VoiceAnalyzer
+
     private lateinit var viewModel: MainViewModel
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = MainViewModel(getAudioFilesUseCase, analyzeVoiceUseCase, voicePlayer)
+        viewModel = MainViewModel(context, getAudioFilesUseCase, analyzeVoiceUseCase, voicePlayer, historyManager, voiceAnalyzer)
     }
 
     @After

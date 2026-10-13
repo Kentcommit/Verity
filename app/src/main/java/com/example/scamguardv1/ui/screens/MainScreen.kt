@@ -1,11 +1,15 @@
 package com.example.scamguardv1.ui.screens
 
 import android.app.role.RoleManager
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -21,7 +25,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -72,6 +79,7 @@ fun ScamGuardApp(viewModel: MainViewModel) {
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showSheet by remember { mutableStateOf(false) }
+    var showQrCheck by remember { mutableStateOf(false) }
 
     val resultSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showResultSheet by remember { mutableStateOf(false) }
@@ -129,9 +137,10 @@ fun ScamGuardApp(viewModel: MainViewModel) {
     }
 
     val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        viewModel.onPermissionResult(isGranted)
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val allGranted = results.values.all { it }
+        viewModel.onPermissionResult(allGranted)
     }
 
     val roleLauncher = rememberLauncherForActivityResult(
@@ -190,16 +199,40 @@ fun ScamGuardApp(viewModel: MainViewModel) {
             Box(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
                 when (val state = uiState) {
                     is MainUiState.Splash -> BrandSplashScreen()
+                    is MainUiState.Auth -> AuthScreen(
+                        isLoading = state.isLoading,
+                        errorMessage = state.errorMessage,
+                        infoMessage = state.infoMessage,
+                        isRegisterMode = state.isRegisterMode,
+                        userEmail = state.userEmail,
+                        isEmailUnverified = state.isEmailUnverified,
+                        onLogin = { email, pass -> viewModel.login(email, pass) },
+                        onRegister = { email, pass -> viewModel.register(email, pass) },
+                        onToggleMode = { viewModel.toggleAuthMode() },
+                        onCheckVerification = { viewModel.checkEmailVerification() },
+                        onResendVerification = { viewModel.resendVerificationEmail() },
+                        onForgotPassword = { email -> viewModel.forgotPassword(email) }
+                    )
                     is MainUiState.Welcome -> WelcomeScreen(onGetStarted = { viewModel.getStarted() })
                     is MainUiState.CheckingPermission -> LoadingScreen("Checking permissions...")
-                    is MainUiState.PermissionRequired -> PermissionScreen(isDenied = false, onGrantClick = { launcher.launch(PermissionHelper.audioPermission) })
-                    is MainUiState.PermissionDenied -> PermissionScreen(isDenied = true, onGrantClick = { launcher.launch(PermissionHelper.audioPermission) })
+                    is MainUiState.PermissionRequired -> PermissionScreen(isDenied = false, onGrantClick = { launcher.launch(PermissionHelper.allRequiredPermissions) })
+                    is MainUiState.PermissionDenied -> PermissionScreen(isDenied = true, onGrantClick = { launcher.launch(PermissionHelper.allRequiredPermissions) })
                     is MainUiState.Loading -> LoadingScreen("Loading...")
+                    is MainUiState.VoiceRecordingRequired -> VoiceRecordingScreen(
+                        userEmail = state.userEmail,
+                        isRecording = state.isRecording,
+                        elapsedSeconds = state.elapsedSeconds,
+                        errorMessage = state.errorMessage,
+                        onStartRecording = { viewModel.startVoiceRecording() },
+                        onPauseRecording = { viewModel.pauseVoiceRecording() },
+                        onSignOut = { viewModel.signOut() }
+                    )
                     is MainUiState.Error -> GlobalErrorScreen(message = state.message, onRetry = { viewModel.refreshFiles() })
                     is MainUiState.Success -> {
                         // Handle System Back Button
-                        BackHandler(enabled = state.isAudioScreeningViewVisible || state.isCallScreeningViewVisible || state.isSettingsVisible || state.selectedAudioFile != null || state.viewingResult != null || state.scanState is ScanUiState.Success) {
+                        BackHandler(enabled = showQrCheck || state.isAudioScreeningViewVisible || state.isCallScreeningViewVisible || state.isSettingsVisible || state.selectedAudioFile != null || state.viewingResult != null || state.scanState is ScanUiState.Success) {
                             when {
+                                showQrCheck -> showQrCheck = false
                                 state.viewingResult != null -> viewModel.dismissResult()
                                 state.scanState is ScanUiState.Success -> viewModel.dismissResult()
                                 state.isSettingsVisible -> {
@@ -284,50 +317,37 @@ fun ScamGuardApp(viewModel: MainViewModel) {
                                 item {
                                     Text(
                                         "Protection tools",
-                                        style = MaterialTheme.typography.titleSmall,
+                                        style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = if (darkTheme) Color.White else Color.Black
                                     )
                                 }
 
                                 item {
-                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                            ProtectionToolItem(
-                                                title = "Audio Screening",
-                                                description = "Analyze recordings",
-                                                icon = Icons.Default.Mic,
-                                                iconColor = if (darkTheme) Color.White else Color.Black,
-                                                onClick = { viewModel.setAudioScreeningViewVisible(true) },
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                            ProtectionToolItem(
-                                                title = "Payment ID",
-                                                description = "Check UPI IDs",
-                                                icon = Icons.Default.CreditCard,
-                                                iconColor = Color(0xFF3478F6),
-                                                onClick = { /* TODO */ },
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                        }
-                                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                            ProtectionToolItem(
-                                                title = "Call Screening",
-                                                description = "Identify flag",
-                                                icon = Icons.Default.Call,
-                                                iconColor = Color(0xFFEB5757),
-                                                onClick = { viewModel.setCallScreeningViewVisible(true) },
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                            ProtectionToolItem(
-                                                title = "QR Check",
-                                                description = "Inspect QR",
-                                                icon = Icons.Default.PhotoCamera,
-                                                iconColor = Color.Gray,
-                                                onClick = { /* TODO */ },
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                        }
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        ProtectionToolItem(
+                                            title = "Audio Screening",
+                                            description = "Analyze recordings",
+                                            icon = Icons.Default.Mic,
+                                            iconColor = if (darkTheme) Color.White else Color.Black,
+                                            onClick = { viewModel.setAudioScreeningViewVisible(true) }
+                                        )
+                                        ProtectionToolItem(
+                                            title = "Call Screening",
+                                            description = "Identify suspicious calls",
+                                            icon = Icons.Default.Call,
+                                            iconColor = Color(0xFFE91E63),
+                                            onClick = { viewModel.setCallScreeningViewVisible(true) }
+                                        )
+                                        ProtectionToolItem(
+                                            title = "QR Check",
+                                            description = "Scan before you trust",
+                                            icon = Icons.Default.QrCodeScanner,
+                                            iconColor = if (darkTheme) Color.White else Color.Black,
+                                            onClick = { showQrCheck = true }
+                                        )
                                     }
                                 }
 
@@ -361,7 +381,7 @@ fun ScamGuardApp(viewModel: MainViewModel) {
                                                 onInfoClick = {
                                                     viewModel.showResult(
                                                         call.phoneNumber,
-                                                        DetectionResult(call.score, call.reasons)
+                                                        DetectionResult(call.score, call.reasons, transcript = call.transcript)
                                                     )
                                                 },
                                                 onLongClick = { itemToDelete = call }
@@ -379,7 +399,7 @@ fun ScamGuardApp(viewModel: MainViewModel) {
                                                 onInfoClick = {
                                                     viewModel.showResult(file.name, result)
                                                 },
-                                                onLongClick = { itemToDelete = file.id }
+                                                onLongClick = { itemToDelete = file }
                                             )
                                         }
                                     }
@@ -397,6 +417,11 @@ fun ScamGuardApp(viewModel: MainViewModel) {
                                         currentView = state.currentSettingsView,
                                         currentTheme = state.currentTheme,
                                         autoDeleteDays = state.autoDeleteDays,
+                                        userEmail = state.userEmail,
+                                        userDisplayName = state.userDisplayName,
+                                        profilePictureUri = state.profilePictureUri,
+                                        isEmailVerified = state.isEmailVerified,
+                                        accountMessage = state.accountMessage,
                                         onBack = {
                                             if (state.currentSettingsView != SettingsView.MAIN) {
                                                 viewModel.navigateSettingsTo(SettingsView.MAIN)
@@ -406,8 +431,18 @@ fun ScamGuardApp(viewModel: MainViewModel) {
                                         },
                                         onNavigateToTheme = { viewModel.navigateSettingsTo(SettingsView.THEME) },
                                         onNavigateToAutoDelete = { viewModel.navigateSettingsTo(SettingsView.AUTO_DELETE) },
+                                        onNavigateToAccountSecurity = { viewModel.navigateSettingsTo(SettingsView.ACCOUNT_SECURITY) },
                                         onThemeChange = { viewModel.updateTheme(it) },
                                         onAutoDeleteChange = { viewModel.updateAutoDeleteDays(it) },
+                                        onUpdateProfilePicture = { viewModel.updateProfilePicture(it) },
+                                        onUpdateDisplayName = { viewModel.updateDisplayName(it) },
+                                        onSendPasswordReset = { viewModel.sendSecurityPasswordReset() },
+                                        onClearAccountMessage = { viewModel.clearAccountMessage() },
+                                        onDeleteAccount = { viewModel.deleteAccount() },
+                                        onSignOut = {
+                                            viewModel.setSettingsVisible(false)
+                                            viewModel.signOut()
+                                        },
                                         darkTheme = darkTheme
                                     )
                                 }
@@ -480,12 +515,22 @@ fun ScamGuardApp(viewModel: MainViewModel) {
                             CallScreeningHistoryScreen(
                                 calls = state.screenedCalls,
                                 isEnabled = state.isCallScreeningEnabled,
+                                isOverlayPermissionGranted = state.isOverlayPermissionGranted,
                                 onBack = onBackCallScreening,
                                 onToggle = onToggleCallScreening,
+                                onRequestOverlay = { viewModel.requestOverlayPermission(context) },
                                 onViewResult = onViewResult,
                                 onClearAll = onClearAllCalls,
                                 onDeleteCall = onDeleteCall
                             )
+                        }
+
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = showQrCheck,
+                            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+                        ) {
+                            QrCheckScreen(onBack = { showQrCheck = false })
                         }
 
                         if (itemToDelete != null) {
@@ -607,17 +652,164 @@ fun RecordingDetailsSheet(
 }
 
 @Composable
+fun ProfileImage(
+    uriString: String?,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null
+) {
+    val context = LocalContext.current
+    val imageBitmap = remember(uriString) {
+        if (!uriString.isNullOrEmpty()) {
+            try {
+                val uri = Uri.parse(uriString)
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    BitmapFactory.decodeStream(inputStream)?.asImageBitmap()
+                }
+            } catch (e: Exception) {
+                null
+            }
+        } else {
+            null
+        }
+    }
+
+    if (imageBitmap != null) {
+        Image(
+            bitmap = imageBitmap,
+            contentDescription = contentDescription,
+            modifier = modifier.clip(CircleShape),
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Box(
+            modifier = modifier
+                .clip(CircleShape)
+                .background(Color(0xFF3478F6).copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Person,
+                contentDescription = contentDescription,
+                tint = Color(0xFF3478F6),
+                modifier = Modifier.fillMaxSize(0.55f)
+            )
+        }
+    }
+}
+
+@Composable
 fun SettingsScreen(
     currentView: SettingsView,
     currentTheme: AppTheme,
     autoDeleteDays: Int,
+    userEmail: String?,
+    userDisplayName: String?,
+    profilePictureUri: String?,
+    isEmailVerified: Boolean,
+    accountMessage: String?,
     onBack: () -> Unit,
     onNavigateToTheme: () -> Unit,
     onNavigateToAutoDelete: () -> Unit,
+    onNavigateToAccountSecurity: () -> Unit,
     onThemeChange: (AppTheme) -> Unit,
     onAutoDeleteChange: (Int) -> Unit,
+    onUpdateProfilePicture: (Uri) -> Unit,
+    onUpdateDisplayName: (String) -> Unit,
+    onSendPasswordReset: () -> Unit,
+    onClearAccountMessage: () -> Unit,
+    onDeleteAccount: () -> Unit,
+    onSignOut: () -> Unit,
     darkTheme: Boolean
 ) {
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            onUpdateProfilePicture(uri)
+        }
+    }
+
+    var showDisplayNameDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
+    var editingDisplayName by remember { mutableStateOf(userDisplayName ?: "") }
+
+    if (showDeleteAccountDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountDialog = false },
+            icon = {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color(0xFFEB5757),
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    "Delete Account Permanently?",
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFEB5757),
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Text(
+                    "This action is permanent and cannot be undone. Your Firebase account, profile picture, scan history, call screening logs, and all local data will be erased completely with no trace left.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteAccountDialog = false
+                        onDeleteAccount()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEB5757))
+                ) {
+                    Text("DELETE ACCOUNT", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteAccountDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showDisplayNameDialog) {
+        AlertDialog(
+            onDismissRequest = { showDisplayNameDialog = false },
+            title = { Text("Edit Display Name", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = editingDisplayName,
+                    onValueChange = { editingDisplayName = it },
+                    label = { Text("Display Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onUpdateDisplayName(editingDisplayName)
+                        showDisplayNameDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3478F6))
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisplayNameDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -642,11 +834,39 @@ fun SettingsScreen(
                     SettingsView.MAIN -> "Settings"
                     SettingsView.THEME -> "Theme"
                     SettingsView.AUTO_DELETE -> "Auto-delete History"
+                    SettingsView.ACCOUNT_SECURITY -> "Account & Security"
                 },
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
+        }
+
+        accountMessage?.let { msg ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF3478F6).copy(alpha = 0.15f)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFF3478F6))
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = msg,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF3478F6),
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onClearAccountMessage, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = Color(0xFF3478F6))
+                    }
+                }
+            }
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
@@ -656,7 +876,169 @@ fun SettingsScreen(
                 enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut()
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    // Top Account Card
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(contentAlignment = Alignment.BottomEnd) {
+                                ProfileImage(
+                                    uriString = profilePictureUri,
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .clickable { photoPickerLauncher.launch("image/*") },
+                                    contentDescription = "Profile Picture"
+                                )
+                                Surface(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clickable { photoPickerLauncher.launch("image/*") },
+                                    shape = CircleShape,
+                                    color = Color(0xFF3478F6),
+                                    shadowElevation = 2.dp
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.CameraAlt,
+                                            contentDescription = "Change Profile Picture",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(Modifier.height(10.dp))
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = userDisplayName.takeIf { !it.isNullOrBlank() }
+                                        ?: userEmail?.substringBefore("@") ?: "User Account",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                IconButton(
+                                    onClick = {
+                                        editingDisplayName = userDisplayName ?: ""
+                                        showDisplayNameDialog = true
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Edit Name",
+                                        tint = Color(0xFF3478F6),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = userEmail ?: "No email set",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Spacer(Modifier.height(8.dp))
+
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (isEmailVerified) Color(0xFF27AE60).copy(alpha = 0.15f) else Color(0xFFF2994A).copy(alpha = 0.15f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = if (isEmailVerified) Icons.Default.Verified else Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = if (isEmailVerified) Color(0xFF27AE60) else Color(0xFFF2994A),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = if (isEmailVerified) "Verified Account" else "Unverified Email",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isEmailVerified) Color(0xFF27AE60) else Color(0xFFF2994A)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Account & Security Options at top
+                    Text(
+                        text = "ACCOUNT & SECURITY",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF3478F6),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+
+                    SettingMenuItem(
+                        title = "Add / Change Profile Photo",
+                        subtitle = "Upload or select a profile picture",
+                        icon = Icons.Default.CameraAlt,
+                        onClick = { photoPickerLauncher.launch("image/*") },
+                        darkTheme = darkTheme
+                    )
+
+                    SettingMenuItem(
+                        title = "Account Details & Security",
+                        subtitle = "Password, Email & Protection Status",
+                        icon = Icons.Default.Security,
+                        onClick = onNavigateToAccountSecurity,
+                        darkTheme = darkTheme
+                    )
+
+                    SettingMenuItem(
+                        title = "Reset Password",
+                        subtitle = "Send password reset link to $userEmail",
+                        icon = Icons.Default.Lock,
+                        onClick = onSendPasswordReset,
+                        darkTheme = darkTheme
+                    )
+
+                    SettingMenuItem(
+                        title = "Delete Account",
+                        subtitle = "Permanently wipe account and all data with no trace",
+                        icon = Icons.Default.DeleteForever,
+                        onClick = { showDeleteAccountDialog = true },
+                        darkTheme = darkTheme,
+                        isDestructive = true
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Text(
+                        text = "PREFERENCES",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF3478F6),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+
                     SettingMenuItem(
                         title = "Appearance",
                         subtitle = when (currentTheme) {
@@ -668,13 +1050,82 @@ fun SettingsScreen(
                         onClick = onNavigateToTheme,
                         darkTheme = darkTheme
                     )
-                    
+
                     SettingMenuItem(
                         title = "Auto-delete history",
                         subtitle = if (autoDeleteDays == 0) "Never" else "After $autoDeleteDays days",
                         icon = Icons.Default.DeleteSweep,
                         onClick = onNavigateToAutoDelete,
                         darkTheme = darkTheme
+                    )
+
+                    SettingMenuItem(
+                        title = "Sign Out",
+                        subtitle = "Log out from your Verity account",
+                        icon = Icons.Default.ExitToApp,
+                        onClick = onSignOut,
+                        darkTheme = darkTheme
+                    )
+                }
+            }
+
+            // Account & Security Sub-View
+            androidx.compose.animation.AnimatedVisibility(
+                visible = currentView == SettingsView.ACCOUNT_SECURITY,
+                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    SettingMenuItem(
+                        title = "Profile Photo",
+                        subtitle = if (!profilePictureUri.isNullOrEmpty()) "Custom photo set (Tap to change)" else "Tap to choose photo",
+                        icon = Icons.Default.CameraAlt,
+                        onClick = { photoPickerLauncher.launch("image/*") },
+                        darkTheme = darkTheme
+                    )
+
+                    SettingMenuItem(
+                        title = "Display Name",
+                        subtitle = userDisplayName.takeIf { !it.isNullOrBlank() } ?: "Tap to set display name",
+                        icon = Icons.Default.Person,
+                        onClick = {
+                            editingDisplayName = userDisplayName ?: ""
+                            showDisplayNameDialog = true
+                        },
+                        darkTheme = darkTheme
+                    )
+
+                    SettingMenuItem(
+                        title = "Email Address",
+                        subtitle = "${userEmail ?: "N/A"} (${if (isEmailVerified) "Verified" else "Unverified"})",
+                        icon = Icons.Default.Email,
+                        onClick = {},
+                        darkTheme = darkTheme
+                    )
+
+                    SettingMenuItem(
+                        title = "Reset Password",
+                        subtitle = "Send password reset link to $userEmail",
+                        icon = Icons.Default.Lock,
+                        onClick = onSendPasswordReset,
+                        darkTheme = darkTheme
+                    )
+
+                    SettingMenuItem(
+                        title = "On-Device Security",
+                        subtitle = "AES-256 local database encryption active",
+                        icon = Icons.Default.Security,
+                        onClick = {},
+                        darkTheme = darkTheme
+                    )
+
+                    SettingMenuItem(
+                        title = "Delete Account & Data",
+                        subtitle = "Permanently remove account, history and files",
+                        icon = Icons.Default.DeleteForever,
+                        onClick = { showDeleteAccountDialog = true },
+                        darkTheme = darkTheme,
+                        isDestructive = true
                     )
                 }
             }
@@ -735,8 +1186,13 @@ fun SettingMenuItem(
     subtitle: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit,
-    darkTheme: Boolean
+    darkTheme: Boolean,
+    isDestructive: Boolean = false
 ) {
+    val iconColor = if (isDestructive) Color(0xFFEB5757) else Color(0xFF3478F6)
+    val textColor = if (isDestructive) Color(0xFFEB5757) else MaterialTheme.colorScheme.onBackground
+    val containerColor = if (isDestructive) Color(0xFFEB5757).copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -747,13 +1203,13 @@ fun SettingMenuItem(
         Surface(
             modifier = Modifier.size(40.dp),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceVariant
+            color = containerColor
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = Color(0xFF3478F6),
+                    tint = iconColor,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -764,18 +1220,18 @@ fun SettingMenuItem(
                 title,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+                color = textColor
             )
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                color = if (isDestructive) Color(0xFFEB5757).copy(alpha = 0.8f) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
             )
         }
         Icon(
             Icons.Default.ChevronRight,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)
+            tint = if (isDestructive) Color(0xFFEB5757).copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)
         )
     }
 }
@@ -1034,8 +1490,10 @@ fun AudioScreeningScreen(
 fun CallScreeningHistoryScreen(
     calls: List<com.example.scamguardv1.domain.model.ScreenedCall>,
     isEnabled: Boolean,
+    isOverlayPermissionGranted: Boolean,
     onBack: () -> Unit,
     onToggle: () -> Unit,
+    onRequestOverlay: () -> Unit,
     onViewResult: (String, DetectionResult) -> Unit,
     onClearAll: () -> Unit,
     onDeleteCall: (com.example.scamguardv1.domain.model.ScreenedCall) -> Unit
@@ -1083,6 +1541,39 @@ fun CallScreeningHistoryScreen(
                 )
             }
 
+            if (isEnabled && !isOverlayPermissionGranted) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFEB5757).copy(alpha = 0.1f)),
+                        shape = RoundedCornerShape(16.dp),
+                        onClick = onRequestOverlay
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Error, contentDescription = null, tint = Color(0xFFEB5757))
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Display Permission Needed",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFEB5757)
+                                )
+                                Text(
+                                    "Allow Verity to show alerts over calls",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFFEB5757).copy(alpha = 0.8f)
+                                )
+                            }
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFFEB5757))
+                        }
+                    }
+                }
+            }
+
             if (calls.isEmpty()) {
                 item {
                     Box(
@@ -1127,7 +1618,7 @@ fun CallScreeningHistoryScreen(
                         onInfoClick = {
                             onViewResult(
                                 call.phoneNumber,
-                                DetectionResult(call.score, call.reasons)
+                                DetectionResult(call.score, call.reasons, transcript = call.transcript)
                             )
                         },
                         onLongClick = { onDeleteCall(call) }

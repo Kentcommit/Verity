@@ -33,9 +33,10 @@ class MainActivity : ComponentActivity() {
         
         val getAudioFilesUseCase = GetAudioFilesUseCase(repository)
         val analyzeVoiceUseCase = AnalyzeVoiceUseCase(voiceAnalyzer, scamDetector)
+        val historyManager = com.example.scamguardv1.data.HistoryManager(applicationContext)
         
         val viewModel: MainViewModel by viewModels {
-            MainViewModelFactory(this, getAudioFilesUseCase, analyzeVoiceUseCase, voicePlayer)
+            MainViewModelFactory(this, getAudioFilesUseCase, analyzeVoiceUseCase, voicePlayer, historyManager, voiceAnalyzer)
         }
 
         setContent {
